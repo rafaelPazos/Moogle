@@ -9,6 +9,7 @@ namespace MoogleEngine
     public class Data_Processing
     {
         static List<Document> documents;
+        static List<Document> finalDocuments;
         static double[,] TFIDF;
         static List<string> needWords;
         static List<string> notNeedWords;
@@ -18,6 +19,7 @@ namespace MoogleEngine
         public Data_Processing(string query)
         {
             documents = new List<Document>();
+            finalDocuments = new List<Document>();
             needWords = new List<string>();
             notNeedWords = new List<string>();
             valueWords = new List<string>();
@@ -27,7 +29,10 @@ namespace MoogleEngine
             AnalizeChirimbolos(query);
             CalculateTFIDF();
             Score();
+            Snippet();
+            End();
         }
+        public List<Document> answer { get { return finalDocuments; } }
         private void LoadFilesContent()
         {
             string[] fileNames = Directory.GetFiles("../Content");
@@ -41,6 +46,7 @@ namespace MoogleEngine
                 string fileContent = reader.ReadToEnd();
                 Document aux = new Document();
                 aux.Content = fileContent;
+                aux.FileName = fileNames[i];
                 documents.Add(aux);
             }
         }
@@ -99,7 +105,7 @@ namespace MoogleEngine
                     tf[j] = (double)documentAppears / (double)documents[j].PureContent.Length;
                 }
                 if (totalDocumentAppears[i] == 0) totalDocumentAppears[i] = 1;
-                double idf = System.Math.Log10(((double)documents.Count) / ((double)totalDocumentAppears[i]));
+                double idf = System.Math.Log10(((double)documents.Count) / ((double)totalDocumentAppears[i])) + 1;
                 for(int k = 0; k < documents.Count; k++)
                 {
                     if(valueAmount[i] > 0) TFIDF[i, k] = tf[k] * idf * Math.Pow(2,valueAmount[i]);
@@ -179,6 +185,70 @@ namespace MoogleEngine
                     queryWords.Add(splittedQuery[i].ToLower());
                 }
             }
+        }
+        private void Snippet()
+        {
+            for (int i = 0; i < queryWords.Count; i++)
+            {
+                for (int j = 0; j < documents.Count; j++)
+                {
+                    if (documents[j].Score == 0) continue;
+                    for (int k = 0; k < documents[j].PureContent.Length;k++)
+                    {
+                        if(queryWords[i] == documents[j].PureContent[k])
+                        {
+                            AppendSnippet(k, j);
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+        private void AppendSnippet(int index,int document)
+        {
+            int aux = 5;
+            int indexAux = index;
+            string snippet = "";
+            while(aux != 0)
+            {
+                snippet += documents[document].PureContent[indexAux] + " ";
+                indexAux++;
+                aux--;
+            }
+            documents[document].Snippet = snippet;
+        }
+        private void End()
+        {
+            float temp = 0;
+            bool[] mark = new bool[documents.Count];
+            int index = 0;
+            Document aux = new Document();
+            while(Marks(mark))
+            {
+                temp = 0;
+                index = 0;
+                for (int i = 0; i < documents.Count;i++)
+                {
+                    if(!mark[i] && temp < documents[i].Score)
+                    {
+                        index = i;
+                        temp = documents[i].Score;
+                        aux = documents[i];
+                    }
+                }
+                mark[index] = true;
+                finalDocuments.Add(aux);
+            }
+        }
+        private bool Marks(bool[] mark)
+        {
+            int aux = 0;
+            for (int i = 0; i < mark.Length;i++)
+            {
+                if (mark[i]) aux++;
+            }
+            if (aux == mark.Length) return false;
+            else return true;
         }
     }
 }
